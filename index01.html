@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>회의 참석 설문</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 30px;
+    }
+
+    #status, #error {
+      display: none;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+
+    #status {
+      color: green;
+    }
+
+    #error {
+      color: red;
+    }
+
+    table {
+      margin-top: 30px;
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th, td {
+      border: 1px solid #aaa;
+      padding: 8px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f2f2f2;
+    }
+  </style>
+
+<!-- Firebase v9 UMD CDN (호환 버전) -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+</head>
+<body>
+  <h1>📝 회의 참석 여부 확인</h1>
+
+  <form id="survey-form">
+    <input type="text" name="name" id="name" placeholder="이름" required>
+    <select name="attendance" id="attendance">
+      <option value="참석">참석</option>
+      <option value="불참">불참</option>
+    </select>
+    <button type="submit">제출</button>
+  </form>
+
+  <p id="status">✅ 제출 완료!</p>
+
+  <h2>응답 결과</h2>
+  <table id="response-table">
+    <thead>
+      <tr>
+        <th>이름</th>
+        <th>참석 여부</th>
+        <th>제출 시간</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div id="stats" style="margin-top: 20px; font-weight: bold;">
+    🙋 참석자: <span id="yes-count">0</span>명 |
+    🙅 불참자: <span id="no-count">0</span>명 |
+    📊 참석률: <span id="rate">0%</span>
+  </div>
+
+  <script>
+    // ✅ Firebase 설정
+    const firebaseConfig = {
+      apiKey: "AIzaSyA2O8sQD2Df49TH-LUdVpAgPUveVM-Iy50",
+      authDomain: "survey-app-test01-r1.firebaseapp.com",
+      databaseURL: "https://survey-app-test01-r1-default-rtdb.firebaseio.com",
+      projectId: "survey-app-test01-r1",
+      storageBucket: "survey-app-test01-r1.firebasestorage.app",
+      messagingSenderId: "672381271194",
+      appId: "1:672381271194:web:635841556b2b8c64077323"
+    };
+
+    // ✅ Firebase 초기화
+    const app = firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const form = document.getElementById("survey-form");
+    const status = document.getElementById("status");
+    const tableBody = document.querySelector("#response-table tbody");
+
+    // ✅ 폼 제출 시 Firebase에 저장
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      status.style.display = "none";
+
+      const name = document.getElementById("name").value.trim();
+      const attendance = document.getElementById("attendance").value;
+      const time = new Date().toISOString();
+
+      if (!name) return;
+
+      // 이름을 키로 사용 → 중복 제출 시 덮어쓰기
+      db.ref("responses/" + name).set({
+        name: name,
+        attendance: attendance,
+        time: time
+      }, function (error) {
+        if (error) {
+          alert("❌ 저장 실패");
+        } else {
+          status.innerText = "✅ 제출 완료!";
+          status.style.display = "block";
+          form.reset();
+        }
+      });
+    });
+
+    // ✅ 실시간 데이터 표시
+    db.ref("responses").on("value", (snapshot) => {
+      const data = snapshot.val();
+      tableBody.innerHTML = "";
+
+      let yes = 0;
+      let no = 0;
+
+      for (const key in data) {
+        const entry = data[key];
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${entry.name}</td>
+          <td>${entry.attendance}</td>
+          <td>${new Date(entry.time).toLocaleString()}</td>
+        `;
+        tableBody.appendChild(tr);
+
+        if (entry.attendance === "참석") yes++;
+        if (entry.attendance === "불참") no++;
+      }
+
+      const total = yes + no;
+      const rate = total > 0 ? Math.round((yes / total) * 100) : 0;
+      document.getElementById("yes-count").innerText = yes;
+      document.getElementById("no-count").innerText = no;
+      document.getElementById("rate").innerText = `${rate}%`;
+    });
+  </script>
+</body>
+</html>
