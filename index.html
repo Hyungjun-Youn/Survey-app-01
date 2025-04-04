@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>회의 참석 설문</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 30px;
+    }
+
+    #status, #error {
+      display: none;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+
+    #status {
+      color: green;
+    }
+
+    #error {
+      color: red;
+    }
+
+    table {
+      margin-top: 30px;
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th, td {
+      border: 1px solid #aaa;
+      padding: 8px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f2f2f2;
+    }
+  </style>
+</head>
+<body>
+  <h1>📝 회의 참석 여부 확인</h1>
+
+  <form id="survey-form">
+    <input type="text" name="name" id="name" placeholder="이름" required>
+    <select name="attendance" id="attendance">
+      <option value="참석">참석</option>
+      <option value="불참">불참</option>
+    </select>
+    <button type="submit">제출</button>
+  </form>
+
+  <p id="status">✅ 제출 완료!</p>
+  <p id="error">⚠️ 이미 제출된 이름입니다.</p>
+
+  <h2>응답 결과</h2>
+  <table id="response-table">
+    <thead>
+      <tr>
+        <th>이름</th>
+        <th>참석 여부</th>
+        <th>제출 시간</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <div id="stats" style="margin-top: 20px; font-weight: bold;">
+    🙋 참석자: <span id="yes-count">0</span>명 |
+    🙅 불참자: <span id="no-count">0</span>명 |
+    📊 참석률: <span id="rate">0%</span>
+  </div>
+
+  <script>
+    const scriptURL = "https://script.google.com/macros/s/AKfycbykSScFV8EZxwM4mYsC984XeNCb4v7FLalUlUBvSBOHIZ4Z-ernezqT1LrCjkIk6kqcOQ/exec";
+    const csvURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQReCFqOyL12qglyCCSo9svjYzWySFKLakTOJmAi9w1ao4LGg7z4fR6A41s_ifVUK-b4UEU2iTPyULb/pub?output=csv";
+
+    const form = document.getElementById("survey-form");
+    const status = document.getElementById("status");
+    const error = document.getElementById("error");
+    const tableBody = document.querySelector("#response-table tbody");
+
+    form.addEventListener("submit", function(e) {
+      e.preventDefault();
+      status.style.display = "none";
+      error.style.display = "none";
+
+      const name = document.getElementById("name").value;
+      const attendance = document.getElementById("attendance").value;
+
+      const formData = new FormData();
+      formData.append("name", name);
+      formData.append("attendance", attendance);
+
+      fetch(scriptURL, { method: "POST", body: formData })
+        .then(res => res.text())
+        .then(response => {
+          if (response === "duplicate") {
+            error.style.display = "block";
+          } else {
+            status.style.display = "block";
+            form.reset();
+            // 약간의 지연 후 응답 불러오기 (시트 반영 대기)
+            setTimeout(loadResponses, 1000);
+          }
+        })
+        .catch(() => {
+          error.style.display = "block";
+          error.innerText = "⚠️ 제출 중 오류가 발생했습니다.";
+        });
+    });
+
+    function loadResponses() {
+  fetch(csvURL)
+    .then(res => res.text())
+    .then(csvText => {
+      const rows = csvText.trim().split("\n").slice(1); // 헤더 제외
+      const latest = {}; // 이름별 마지막 응답 저장
+
+      rows.forEach(line => {
+        const [name, attendance, time] = line.split(",");
+        latest[name] = { name, attendance, time }; // 같은 이름은 덮어쓰기
+      });
+
+      // 테이블 및 통계 초기화
+      tableBody.innerHTML = "";
+      let yes = 0;
+      let no = 0;
+
+      Object.values(latest).forEach(row => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${row.name}</td>
+          <td>${row.attendance}</td>
+          <td>${row.time}</td>
+        `;
+        tableBody.appendChild(tr);
+
+        // 통계 계산
+        if (row.attendance.trim() === "참석") {
+          yes++;
+        } else if (row.attendance.trim() === "불참") {
+          no++;
+        }
+      });
+
+      // 통계 표시
+      const total = yes + no;
+      const rate = total > 0 ? Math.round((yes / total) * 100) : 0;
+      document.getElementById("yes-count").innerText = yes;
+      document.getElementById("no-count").innerText = no;
+      document.getElementById("rate").innerText = `${rate}%`;
+    })
+    .catch(error => {
+      console.error("응답 불러오기 실패:", error);
+    });
+}
+
+    // 페이지 로딩 시 실행
+    loadResponses();
+  </script>
+</body>
+</html>
