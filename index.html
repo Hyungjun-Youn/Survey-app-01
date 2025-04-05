@@ -1,5 +1,4 @@
-<!DOCTYPE html>
-<html>
+<!DOCTYPE html><html>
 <head>
   <title>회의 참석 설문</title>
   <style>
@@ -7,57 +6,52 @@
       font-family: Arial, sans-serif;
       padding: 30px;
     }
-
     #status, #error {
       display: none;
       margin-top: 10px;
       font-weight: bold;
     }
-
     #status {
       color: green;
     }
-
     #error {
       color: red;
     }
-
     table {
       margin-top: 30px;
       border-collapse: collapse;
       width: 100%;
     }
-
     th, td {
       border: 1px solid #aaa;
       padding: 8px;
       text-align: left;
     }
-
     th {
       background-color: #f2f2f2;
     }
+    #controls {
+      margin-top: 20px;
+    }
   </style>
-
-<!-- Firebase v9 UMD CDN (호환 버전) -->
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 </head>
 <body>
-  <h1>📝 회의 참석 여부 확인</h1>
-
-  <form id="survey-form">
+  <h1>📝 회의 참석 여부 확인</h1>  <form id="survey-form">
     <input type="text" name="name" id="name" placeholder="이름" required>
     <select name="attendance" id="attendance">
       <option value="참석">참석</option>
       <option value="불참">불참</option>
     </select>
     <button type="submit">제출</button>
-  </form>
+  </form>  <p id="status">✅ 제출 완료!</p>  <div id="controls">
+    <label for="filter-date">날짜 필터:</label>
+    <input type="date" id="filter-date"><label for="admin-name">(관리자 전용)</label>
+<input type="text" id="admin-name" placeholder="관리자 이름 입력">
+<button id="reset-btn">데이터 초기화</button>
 
-  <p id="status">✅ 제출 완료!</p>
-
-  <h2>응답 결과</h2>
+  </div>  <h2>응답 결과</h2>
   <table id="response-table">
     <thead>
       <tr>
@@ -67,16 +61,11 @@
       </tr>
     </thead>
     <tbody></tbody>
-  </table>
-
-  <div id="stats" style="margin-top: 20px; font-weight: bold;">
+  </table>  <div id="stats" style="margin-top: 20px; font-weight: bold;">
     🙋 참석자: <span id="yes-count">0</span>명 |
     🙅 불참자: <span id="no-count">0</span>명 |
     📊 참석률: <span id="rate">0%</span>
-  </div>
-
-  <script>
-    // ✅ Firebase 설정
+  </div>  <script>
     const firebaseConfig = {
       apiKey: "AIzaSyA2O8sQD2Df49TH-LUdVpAgPUveVM-Iy50",
       authDomain: "survey-app-test01-r1.firebaseapp.com",
@@ -87,15 +76,16 @@
       appId: "1:672381271194:web:635841556b2b8c64077323"
     };
 
-    // ✅ Firebase 초기화
     const app = firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
     const form = document.getElementById("survey-form");
     const status = document.getElementById("status");
     const tableBody = document.querySelector("#response-table tbody");
+    const filterDate = document.getElementById("filter-date");
+    const resetBtn = document.getElementById("reset-btn");
+    const adminInput = document.getElementById("admin-name");
 
-    // ✅ 폼 제출 시 Firebase에 저장
     form.addEventListener("submit", function (e) {
       e.preventDefault();
       status.style.display = "none";
@@ -106,15 +96,12 @@
 
       if (!name) return;
 
-      // 이름을 키로 사용 → 중복 제출 시 덮어쓰기
       db.ref("responses/" + name).set({
         name: name,
         attendance: attendance,
         time: time
       }, function (error) {
-        if (error) {
-          alert("❌ 저장 실패");
-        } else {
+        if (!error) {
           status.innerText = "✅ 제출 완료!";
           status.style.display = "block";
           form.reset();
@@ -122,34 +109,53 @@
       });
     });
 
-    // ✅ 실시간 데이터 표시
+    resetBtn.addEventListener("click", () => {
+      const adminName = adminInput.value.trim();
+      if (adminName === "admin") {
+        if (confirm("정말 모든 데이터를 초기화하시겠습니까?")) {
+          db.ref("responses").remove();
+        }
+      } else {
+        alert("관리자 이름이 올바르지 않습니다.");
+      }
+    });
+
     db.ref("responses").on("value", (snapshot) => {
       const data = snapshot.val();
-      tableBody.innerHTML = "";
-
-      let yes = 0;
-      let no = 0;
+      const entries = [];
 
       for (const key in data) {
-        const entry = data[key];
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${entry.name}</td>
-          <td>${entry.attendance}</td>
-          <td>${new Date(entry.time).toLocaleString()}</td>
-        `;
-        tableBody.appendChild(tr);
-
-        if (entry.attendance === "참석") yes++;
-        if (entry.attendance === "불참") no++;
+        entries.push(data[key]);
       }
+
+      entries.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+      const selectedDate = filterDate.value;
+
+      tableBody.innerHTML = "";
+      let yes = 0, no = 0;
+
+      entries.forEach(entry => {
+        const entryDate = new Date(entry.time).toISOString().split("T")[0];
+        if (!selectedDate || selectedDate === entryDate) {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${entry.name}</td>
+            <td>${entry.attendance}</td>
+            <td>${new Date(entry.time).toLocaleString()}</td>
+          `;
+          tableBody.appendChild(tr);
+
+          if (entry.attendance === "참석") yes++;
+          if (entry.attendance === "불참") no++;
+        }
+      });
 
       const total = yes + no;
       const rate = total > 0 ? Math.round((yes / total) * 100) : 0;
       document.getElementById("yes-count").innerText = yes;
       document.getElementById("no-count").innerText = no;
-      document.getElementById("rate").innerText = `${rate}%`;
+      document.getElementById("rate").innerText = ${rate}%;
     });
-  </script>
-</body>
+  </script></body>
 </html>
